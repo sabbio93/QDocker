@@ -1,0 +1,478 @@
+grammar xtext.qactor.QADocker with org.eclipse.xtext.common.Terminals
+
+generate qADocker "http://www.qactor.xtext/QADocker"
+QActorSystem:
+	"System" spec=QActorSystemSpec;
+
+QActorSystemSpec:
+	name=ID (testing?="-testing")?
+	(message+=Message)*
+	(context+=Context)*
+	(actor+=QActor)*
+	(robot=Robot)? //Specialized actor see it.unibo.xtext.qactor.robot
+;
+/*
+ * -------------------------------------------------
+ * TODO: 
+ * ( actor     += QGenericActor   )*
+ * QGenericActor : QActor | Robot ...
+ * -------------------------------------------------
+ */
+//Compoment : QActor | Robot ; 
+Robot:
+	name=ID actor=QActor "TDDO";
+	/*
+ * ------------------------------------------
+ * MESSAGE
+* ------------------------------------------
+ */
+Message:
+	OutOnlyMessage | OutInMessage;
+
+OutOnlyMessage:
+	Dispatch | Event | Signal | Token;
+
+OutInMessage:
+	Request | Invitation;
+
+Event:
+	"Event" name=ID ":" msg=PHead;
+
+Signal:
+	"Signal" name=ID ":" msg=PHead;
+
+Token:
+	"Token" name=ID ":" msg=PHead;
+
+Dispatch:
+	"Dispatch" name=ID ":" msg=PHead;
+
+Request:
+	"Request" name=ID ":" msg=PHead;
+
+Invitation:
+	"Invitation" name=ID ":" msg=PHead;
+
+	/* 
+ * Context
+ */
+Context:
+	"Context" name=ID "ip" ip=ComponentIP
+	(env?="-g" color=WindowColor)?
+	(standalone?="-standalone")?
+	(httpserver?="-httpserver")?
+	(handler+=EventHandler)*;
+
+	/* 
+ * ===========================================
+ * QACTOR
+ * ===========================================
+ */
+QActor:
+	"QActor" name=ID "context" context=[Context]
+	//		(interpreted ?= "-i")? 
+	(env?="-g" color=WindowColor)?
+	"{"
+	("Rules" "{" (rules+=Rule)* "}")?
+	(data+=Data)*
+	(action+=Action)*
+	(plans+=Plan)*
+	"}";
+	/*
+  * Rule (Aguzzi revised)
+  */
+Rule:
+	head=PHead (":-" body+=PTerm (',' body+=PTerm)*)? ".";
+	/*
+ * Prolog
+ */
+//terminal ATOM : ('a'..'z') ( 'a'..'z'|'A'..'Z'   )*; //WARNING: hides ID
+terminal VARID:
+	('A'..'Z' | '_') ('a'..'z' | 'A'..'Z' | '_' | '0'..'9')*;
+
+PHead:
+	PAtom | PStruct;
+
+PTerm:
+	PAtom | PStruct | PPredef | PActorCall;
+
+PAtom:
+	PAtomString | Variable | PAtomNum | PAtomic //| Data
+;
+
+PAtomString:
+	val=STRING;
+
+PAtomic:
+	val=ID;
+
+PAtomNum:
+	val=INT;
+
+PStruct:
+	functor=ID "(" (msgArg+=PTerm)? ("," msgArg+=PTerm)* ")";
+
+PActorCall:
+	"Actor" "<-" body=PStruct;
+	/*
+ * Added by Aguzzi
+ */
+//PPredicate :
+//	PStruct | PPredef
+//;
+PPredef:
+	PAtomCut | PIs;
+
+PIs:
+	varout=Variable "is" varin=Variable "+" num=PAtomNum;
+
+PAtomCut:
+	{PAtomCut} "!";
+	/*
+ * End Aguzzi
+ */
+/*
+ * Data 
+ */
+Data:
+	IntegerData | StringData;
+
+IntegerData:
+	{IntegerData} "int" name=ID "=" value=INT;
+
+StringData:
+	{StringData} "String" name=ID "=" value=STRING;
+
+	/*
+ * Action 
+ */
+Action:
+	"Action" name=ID (undoable?="undoable")? ("maxtime" "(" msec=INT ")") ("arg" arg=PStruct)? ";";
+	/*
+ * PLAN
+ */
+Plan:
+	"Plan" name=ID (normal?="normal")? (resume?="resumeLastPlan")?
+	action+=PlanAction (";" action+=PlanAction)*;
+
+PlanAction:
+	(guard=Guard)? move=Move (react=Reaction)? ("else" elsemove=Move (elsereact=Reaction)?)?;
+	/*
+ * Guard   
+ */
+Guard:
+	{Guard} "[" (not?="not")? guardspec=GuardPredicate "]";
+	//GuardSpec:
+// 	GuardQuery //| GuardWait
+//;
+//GuardWait:
+//	name="!!" evId=[Event] ( "and" (not?="not")? guard = GuardQuery )?
+//;
+//GuardQuery :
+//	GuardPredicate //GuardAtom | 
+//;
+//GuardAtom :
+//	atom=ID //(stay?="!")? 
+//;
+GuardPredicate:
+	GuardPredicateStable | GuardPredicateRemovable;
+
+GuardPredicateRemovable:
+	{GuardPredicateRemovable} "??" pred=PTerm;
+
+GuardPredicateStable:
+	{GuardPredicateStable} "!?" pred=PTerm;
+	/*/
+Predicate:
+	functor=ID "(" args+=GuardArg ( "," args+=GuardArg )* ")"
+;
+GuardArg :
+ 	 VarArg	 | AtomArg | StringArg
+;
+VarArg:
+	atom=ID	//UPCASE
+;
+AtomArg:
+	IntAtonArg //| SymbolAtomArg
+;
+IntAtonArg:	atom=INT ;
+//SymbolAtomArg:	atom=ATOM ;
+//terminal ATOM :  ('a'..'z' ) ('a'..'z')* ;
+StringArg: atom=STRING ; 
+*/
+/*
+ * -----------------------------------
+ * MOVE
+ * -----------------------------------
+ */
+Move:
+	ActionMove | MessageMove | ExtensionMove | BasicMove | PlanMove | GuardMove | BasicRobotMove;
+
+ActionMove:
+	ExecuteAction | SolveGoal | Demo | ActorOp;
+
+ExecuteAction:
+	{ExecuteAction} "execute" action=[Action] ("with" arg=PHead)? | "dosentence" sentence=PHead;
+
+SolveGoal:
+	{SolveGoal} "solve" goal=PHead duration=TimeLimit ("onFailSwitchTo" plan=[Plan])?;
+
+Demo:
+	{Demo} "demo" goal=PHead ("onFailSwitchTo" plan=[Plan])?;
+
+ActorOp:
+	{ActorOp} "actorOp" goal=PHead ("onFailSwitchTo" plan=[Plan])?;
+
+BasicRobotMove:
+	{BasicRobotMove} "dummyRobotMove" //(re)defined in it.unibo.qactor.robot
+;
+
+BasicMove:
+	Print | PrintCurrentEvent | PrintCurrentMessage | MemoCurrentEvent | MemoCurrentMessage;
+
+Print:
+	{Print} "println" "(" args=PHead ")" //MoveArgs  
+;
+
+PrintCurrentEvent:
+	{PrintCurrentEvent} "printCurrentEvent" memo?="-memo"?;
+
+PrintCurrentMessage:
+	{PrintCurrentMessage} "printCurrentMessage" memo?="-memo"?;
+
+MemoCurrentEvent:
+	{MemoCurrentEvent} "memoCurrentEvent" (lastonly?="-lastonly")?;
+
+MemoCurrentMessage:
+	{MemoCurrentMessage} "memoCurrentMessage" (lastonly?="-lastonly")?;
+
+	/*
+ * -----------------------------------
+ * PlanMove
+ * -----------------------------------
+ */
+PlanMove:
+	GetActivationEvent | GetSensedEvent | LoadPlan | RunPlan |
+	ResumePlan | RepeatPlan | SwitchPlan | SuspendPlan | EndPlan | EndActor;
+
+GetActivationEvent:
+	{GetActivationEvent} "getActivationEvent" var=Variable //used in a plan to know the event that triggers it
+;
+
+GetSensedEvent:
+	{GetSensedEvent} "getSensedEvent" var=Variable //used in a actor to know the event that resumes the actor
+;
+
+LoadPlan:
+	{LoadPlan} "loadPlan" fname=VarOrString;
+
+RunPlan:
+	{RunPlan} "runPlan" plainid=VarOrAtomic duration=TimeLimit;
+
+ResumePlan:
+	{ResumePlan} "resumeLastPlan";
+
+SuspendPlan:
+	{SuspendPlan} "suspendLastPlan";
+
+RepeatPlan:
+	{RepeatPlan} "repeatPlan" (niter=VarOrInt)?;
+
+SwitchPlan:
+	{SwitchPlan} "switchToPlan" plan=[Plan];
+
+EndPlan:
+	{EndPlan} "endPlan" msg=STRING;
+
+EndActor:
+	{EndActor} "endQActor" msg=STRING;
+	/*
+ * -----------------------------------
+ * GuardMove 
+ * -----------------------------------
+ */
+GuardMove:
+	AddRule | RemoveRule;
+
+AddRule:
+	{AddRule} "addRule" rule=PHead;
+
+RemoveRule:
+	{RemoveRule} "removeRule" rule=PHead;
+
+	/*
+ * -----------------------------------
+ * MessageMove
+ * -----------------------------------
+ */
+MessageMove:
+	SendDispatch | SendRequest | ReplyToCaller |
+	ReceiveMsg | OnReceiveMsg | MsgSelect | //NO MORE IMPLEMENTED IN AKKA
+	RaiseEvent | SenseEvent | MsgSwitch | EventSwitch;
+
+SendDispatch:
+	{SendDispatch} "forward" dest=VarOrQactor "-m" msgref=[Message] ":" val=PHead;
+
+SendRequest:
+	{SendRequest} "demand" dest=VarOrQactor "-m" msgref=[Message] ":" val=PHead ("answHandle")?;
+	//  SendAnswer :
+//  	{} "answerTo" dest=ID "-m" id=[Message] "seqnum" seqnum=VarOrString 
+//  	(":" val = VarOrPStruct )?
+//   ;
+ReplyToCaller:
+	{ReplyToCaller} "replyToCaller" "-m" msgref=[Message] ":" val=PHead;
+
+ReceiveMsg:
+	{ReceiveMsg} "receiveMsg" duration=TimeLimit (spec=MsgSpec)?;
+	//AKKA
+// OnReceive :
+// 	"onReceive" duration=TimeLimit (spec=MsgSpec)? "->" move = SwitchPlan 
+// ;
+MsgSpec:
+	"-m" msg=[Message] "sender" sender=VarOrAtomic "content" content=PHead; //MSGID:MSGTYPE:SENDER:RECEIVER:CONTENT:SEQNUM
+OnReceiveMsg:
+	{OnReceiveMsg} "receiveTheMsg" "m" "(" msgid=PHead "," msgtype=PHead ","
+	msgsender=PHead "," msgreceiver=PHead "," msgcontent=PHead "," msgseqnum=PHead ")"
+	duration=TimeLimit;
+
+MsgSelect:
+	{MsgSelect} "receiveAndSwitch" duration=TimeLimit messages+=[Message] ("," messages+=[Message])*
+	"->"
+	plans+=[Plan] ("," plans+=[Plan])*;
+
+RaiseEvent:
+	{RaiseEvent} "emit" ev=[Event] ":" content=PHead;
+
+SenseEvent:
+	{SenseEvent} "sense" duration=TimeLimit
+	events+=[Event] ("," events+=[Event])* "->" plans+=Continuation ("," plans+=Continuation)*;
+
+MsgSwitch:
+// 	"onMsg" message=[Message] ( ":" msg += PHead "->" move += Move ";" )+ //"do" move += Continuation )+ //
+	{MsgSwitch} "onMsg" message=[Message] ":" msg=PHead "->" move=Move;
+
+EventSwitch:
+	{EventSwitch} "onEvent" event=[Event] ":" msg=PHead "->" move=Move;
+
+Continuation:
+	plan=[Plan] | nane="continue";
+	/*
+ * -----------------------------------
+ * ExtensionMove
+ * -----------------------------------
+ */
+ExtensionMove:
+	Photo | Sound | Video | Delay;
+	/*
+ * AnswerEvent is defined so to handle the termination of a asynch action
+ * that cannot be reactive 
+ */
+Photo:
+	{Photo} "photo" duration=TimeLimit destfile=MoveFile (answerEvent=AnswerEvent)?;
+
+Sound:
+	{Sound} "sound" duration=TimeLimit srcfile=MoveFile (answerEvent=AnswerEvent)?;
+
+Video:
+	{Video} "video" duration=TimeLimit destfile=MoveFile (answerEvent=AnswerEvent)?;
+
+Delay:
+	{Delay} "delay" duration=TimeLimit;
+
+	/* 
+ * EVENTS
+ */
+AnswerEvent:
+	"answerEv" evName=ID;
+	/*
+ * ===============================================
+ * Event-driven
+ * ===============================================
+ */
+EventHandler:
+	"EventHandler" name=ID ("for" events+=[Event] ("," events+=[Event])*)? (print?="-print")? ("{" body=EventHandlerBody
+	"}")? ";";
+
+EventHandlerBody:
+	op+=EventHandlerOperation (";" op+=EventHandlerOperation)*;
+
+EventHandlerOperation:
+	MemoOperation | SolveOperation | RaiseEvent | SendEventAsDispatch;
+
+MemoOperation:
+	"memo" rule=MemoRule "for" actor=[QActor] | doMemo=MemoCurrentEvent "for" actor=[QActor];
+
+SolveOperation:
+	"solve" goal=PTerm "for" actor=[QActor];
+	/*
+ * Guards for event handler operations should be executed by whom?
+ */
+SendEventAsDispatch:
+	"forwardEvent" actor=[QActor] "-m" msgref=[Message];
+
+MemoRule:
+	MemoEvent //  | Others memo rules
+;
+
+MemoEvent:
+	{MemoEvent} "currentEvent";
+	//Task :
+//	"Task" name=ID  "for" events += [Event] ( "," events += [Event] )* ";"
+//;
+
+
+/*
+ * ===============================================
+ * Reaction - Alarm event
+ * ===============================================
+ */
+Reaction:
+	{Reaction} "react" alarms+=AlarmEvent ("or" alarms+=AlarmEvent)*;
+
+AlarmEvent:
+	NormalEvent | ContinueEvent;
+
+NormalEvent:
+	{NormalEvent} "event" ev=[Event] "->" planRef=[Plan];
+
+ContinueEvent:
+	{ContinueEvent} "when" evOccur=[Event];
+
+	/*
+ * BASIC
+ */
+VarOrQactor:
+	var=Variable | dest=[QActor];
+
+VarOrInt:
+	var=Variable | const=INT;
+
+VarOrAtomic:
+	var=Variable | const=PAtomic;
+
+VarOrString:
+	var=Variable | const=STRING;
+
+VarOrPStruct:
+	var=Variable | psrtuct=PStruct;
+
+VarOrPhead:
+	var=Variable | phead=PHead;
+
+VarOrAtomOrPStruct:
+	var=Variable | psrtuct=PStruct | atom=PAtomic;
+
+Variable:
+	{Variable} varName=VARID;
+
+TimeLimit:
+	{TimeLimit} "time" "(" (msec=INT | var=Variable) ")";
+
+ComponentIP:
+	{ComponentIP} "[" "host=" host=STRING "port=" port=INT "]";
+
+MoveFile:
+	{MoveFile} "file" "(" fname=VarOrString ")";
+
+enum WindowColor:
+	white | gray | blue | green | yellow | cyan;
