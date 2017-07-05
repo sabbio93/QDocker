@@ -1,0 +1,78 @@
+System blsdAnalisi	//-testing
+Dispatch    start   : click
+Dispatch    stop   : click
+Event    local_click_start : click
+Event    local_click_stop : click
+
+Context computer ip [host="192.168.137.1" port=8020]  -g cyan
+Context raspberry ip [host="192.168.137.2" port=8030]
+
+QActor bottone context raspberry {
+	Plan init normal
+   		actorOp creaBottone;
+   		switchToPlan work
+  	Plan work
+  		sense time(300000) local_click_start,local_click_stop -> continue,continue;
+   		printCurrentEvent;
+    	onEvent local_click_start : cliked -> forward led -m start : parti;
+    	onEvent local_click_stop : cliked -> forward led -m stop : fermati;
+											//emit click : click("switchati");
+		repeatPlan
+}
+
+QActor led context computer {
+	Plan init normal
+		actorOp creaLed;
+		//actorOp creaLedDissolvente;
+		switchToPlan aspetta
+	Plan aspetta
+		receiveMsg time(300000);
+		printCurrentMessage;
+		onMsg start : click -> switchToPlan lampeggia;
+		repeatPlan
+	Plan lampeggia
+		receiveMsg time(1000);
+		printCurrentMessage;
+		[ ?? tout(senseevent,V)] actorOp switchLed;
+		onMsg stop : click -> switchToPlan aspetta;
+		repeatPlan
+}
+
+//System blsdAnalisi	//-testing
+//Dispatch start : cmd(C)
+//Dispatch stop : cmd(C)
+//Event local_click : click(C)
+//
+//Context computer ip [host="192.168.137.1" port=8020]  -g cyan
+//Context raspberry ip [host="192.168.137.2" port=8030]
+//
+//QActor console context computer {
+//	Plan init normal
+//   		actorOp creaConsole;
+//   		switchToPlan work
+//  	Plan work
+//  		sense time(300000) local_click -> continue;
+//   		printCurrentEvent;
+//    	onEvent local_click : click(start) -> forward led -m start : cmd(CMD);	//[!? click(start)] 
+//    	onEvent local_click : click(stop) -> forward led -m stop : cmd(CMD);
+//											//emit click : click("switchati");
+//		repeatPlan
+//}
+//
+//QActor led context raspberry {
+//	Plan init normal
+//		actorOp creaLed;
+//		//actorOp creaLedDissolvente;
+//		switchToPlan aspetta
+//	Plan aspetta
+//		receiveMsg time(300000);
+//		printCurrentMessage;
+//		onMsg start : click -> switchToPlan lampeggia;
+//		repeatPlan
+//	Plan lampeggia
+//		receiveMsg time(1000);
+//		printCurrentMessage;
+//		[ ?? tout(senseevent,V)] actorOp switchLed;
+//		onMsg stop : click -> switchToPlan aspetta;
+//		repeatPlan
+//}
